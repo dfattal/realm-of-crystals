@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Realm of Crystals</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22%3E%3Cpath d=%22M10 1 16 7 10 19 4 7Z%22 fill=%22%23ef8ae0%22/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <div id="dragbox"></div>
+
+  <div id="hud" class="hidden">
+    <div id="topbar">
+      <div class="res" title="Crystal"><svg viewBox="0 0 20 20"><path d="M10 1 16 7 10 19 4 7Z" fill="#ef8ae0" stroke="#7a2a6c" stroke-width="1.4"/></svg><span id="r-crystal">0</span></div>
+      <div class="res" title="Wood"><svg viewBox="0 0 20 20"><rect x="2" y="6" width="16" height="8" rx="4" fill="#b07a45" stroke="#5c3a1a" stroke-width="1.4"/><circle cx="15" cy="10" r="2.4" fill="#e3b27a"/></svg><span id="r-wood">0</span></div>
+      <div class="res" title="Population"><svg viewBox="0 0 20 20"><circle cx="10" cy="6" r="3.6" fill="#e9eef3"/><path d="M3 18c0-4 3-7 7-7s7 3 7 7Z" fill="#e9eef3"/></svg><span id="r-pop">0/0</span></div>
+      <div class="res glory hidden" title="Great Hall level and free builders (Clan Saga)"><svg viewBox="0 0 20 20"><path d="M3 15 4.5 6 8 10 10 4l2 6 3.5-4L17 15Z" fill="#ffc75a" stroke="#7a5414" stroke-width="1.3"/></svg><span id="r-glory"></span></div>
+      <div class="spacer"></div>
+      <div id="dxr-badge" class="badge">2D</div>
+      <div id="clock">00:00</div>
+      <button id="btn-menu" title="Pause (P)">II</button>
+    </div>
+
+    <div id="bottom">
+      <div id="minimap-wrap"><canvas id="minimap" width="200" height="200"></canvas></div>
+      <div id="selection-panel"></div>
+      <div id="command-card"></div>
+    </div>
+    <div id="toasts"></div>
+    <div id="tooltip"></div>
+  </div>
+
+  <div id="loading" class="screen">
+    <div class="panel">
+      <h1>Realm of Crystals</h1>
+      <div class="bar"><div id="load-fill"></div></div>
+      <p id="load-text">Loading models…</p>
+    </div>
+  </div>
+
+  <div id="tutorial" class="hidden">
+    <div class="tut-count"></div>
+    <div class="tut-title"></div>
+    <div class="tut-text"></div>
+    <div class="tut-goal"></div>
+    <div class="tut-btns"><button id="tut-skip">Skip tutorial</button><button id="tut-next" class="primary hidden"></button></div>
+  </div>
+
+  <div id="start-screen" class="screen hidden">
+    <div class="panel wide">
+      <h1>Realm of Crystals</h1>
+      <p class="tag">A glasses-free 3D real-time strategy game for DisplayXR displays.</p>
+      <p>Gather <b class="c-crystal">crystal</b> and <b class="c-wood">wood</b>, raise an army and destroy the enemy <b>Castle</b> before the undead Bone Legion destroys yours.</p>
+      <div class="modes">
+        <label class="mode"><input type="radio" name="mode" value="classic" checked /><b>Classic</b><small>Azure Order vs the Bone Legion. Build, train, destroy the Castle.</small></label>
+        <label class="mode viking"><input type="radio" name="mode" value="viking" /><b>Clan Saga</b><small id="saga-sub">Grow a Viking city that saves between sessions. Level up your Great Hall and heroes, lead warbands against Barbarian camps (Lv 1–10) and fight off raids.</small></label>
+      </div>
+      <div id="saga-row" class="saga-row hidden"><span id="saga-info"></span><button id="btn-newsaga" class="secondary">Start a new saga</button></div>
+      <div class="diff">
+        <span>AI difficulty</span>
+        <label><input type="radio" name="diff" value="easy" /> Easy</label>
+        <label><input type="radio" name="diff" value="normal" checked /> Normal</label>
+        <label><input type="radio" name="diff" value="hard" /> Hard</label>
+      </div>
+      <div class="start-btns">
+        <button id="btn-tutorial" class="secondary">Tutorial (new players)</button>
+        <button id="btn-start" class="primary">Start battle</button>
+      </div>
+      <details class="controls">
+        <summary>Controls</summary>
+        <table>
+          <tr><td>Left click / drag</td><td>Select units (Shift adds, double-click selects that type)</td></tr>
+          <tr><td>Right click</td><td>Move · attack · gather · build · set rally point</td></tr>
+          <tr><td>Arrows, screen edge, middle-drag</td><td>Pan the camera</td></tr>
+          <tr><td>Mouse wheel / pinch · + − · [ ]</td><td>Zoom · rotate (or Alt+wheel)</td></tr>
+          <tr><td>Q W E R · A · S</td><td>Command-card buttons · attack-move · stop</td></tr>
+          <tr><td>Ctrl+1–9 / 1–9</td><td>Make / recall control groups</td></tr>
+          <tr><td>H or Space · . (period)</td><td>Jump to Castle · select an idle worker</td></tr>
+          <tr><td>J · F · G · B · T · Y</td><td>Clan Saga: cycle heroes · hero abilities · form warband · march home · train at the yard</td></tr>
+          <tr><td>U</td><td>Clan Saga: upgrade the selected building</td></tr>
+          <tr><td>P · F3</td><td>Pause · red/cyan stereo preview (no DisplayXR display needed)</td></tr>
+        </table>
+      </details>
+    </div>
+  </div>
+
+  <div id="end-screen" class="screen hidden">
+    <div class="panel">
+      <h1 id="end-title">Victory</h1>
+      <p id="end-text"></p>
+      <button id="btn-restart" class="primary">Play again</button>
+    </div>
+  </div>
+
+  <div id="pause-screen" class="screen hidden">
+    <div class="panel">
+      <h1>Paused</h1>
+      <button id="btn-resume" class="primary">Resume</button>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

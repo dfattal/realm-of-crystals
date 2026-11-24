@@ -1,0 +1,28 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Model Gallery</title>
+<style>body{margin:0;background:#bcd3e3}canvas{display:block}#l{position:fixed;top:0;left:0;font:12px sans-serif;color:#000;pointer-events:none}</style></head>
+<body><div id="l"></div><script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const P = new URLSearchParams(location.search);
+const files = (P.get('f') || '').split(',').filter(Boolean);
+const anim = P.get('a') || 'Idle';
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(innerWidth, innerHeight); document.body.appendChild(r.domElement);
+r.shadowMap.enabled = true;
+const s = new THREE.Scene(); s.background = new THREE.Color(0xbcd3e3);
+s.add(new THREE.HemisphereLight(0xffffff, 0x667744, 2)); const d = new THREE.DirectionalLight(0xffffff, 2); d.position.set(5, 10, 7); s.add(d);
+const cols = Math.ceil(Math.sqrt(files.length)); const sp = +(P.get('sp') || 4);
+const cam = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 500);
+const W = cols * sp; cam.position.set(W / 2, W * 0.75, W * 1.25); cam.lookAt(W / 2 - sp/2, 0, W / 2 - sp);
+const L = new GLTFLoader(); const mixers = []; const labels = [];
+await Promise.all(files.map(async (f, i) => {
+  const g = await L.loadAsync(`/models/${f}.glb`);
+  const o = g.scene; o.position.set((i % cols) * sp, 0, Math.floor(i / cols) * sp); s.add(o);
+  const box = new THREE.Box3().setFromObject(o); const sz = box.getSize(new THREE.Vector3());
+  labels.push({ f, i, sz: sz.toArray().map(v => v.toFixed(2)).join('x'), pos: o.position.clone() });
+  if (g.animations.length) { const m = new THREE.AnimationMixer(o); const c = g.animations.find(a => a.name === anim) || g.animations[0]; m.clipAction(c).play(); mixers.push(m); }
+}));
+window.__labels = labels;
+const clock = new THREE.Clock();
+r.setAnimationLoop(() => { const dt = clock.getDelta(); mixers.forEach(m => m.update(dt)); r.render(s, cam);
+  document.getElementById('l').innerHTML = labels.map(l => { const v = l.pos.clone().project(cam); return `<div style="position:absolute;left:${(v.x+1)/2*innerWidth}px;top:${(1-v.y)/2*innerHeight+10}px">${l.f.replace('kk/','')}<br>${l.sz}</div>`; }).join(''); });
+</script></body></html>
