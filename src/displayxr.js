@@ -43,7 +43,14 @@ export async function startDisplayXR({ THREE, renderer, scene, camera, rtsCam, c
   // factor to fit the GL limits AND the browser's drawing-buffer area cap. The old
   // clientWidth x dpr x 2 was 15360x4320 full screen on an 8K panel at 300%: the browser silently
   // drew it at 10861x3054, getViewport() still split canvas.width, and one eye showed both images.
-  let viewScale = null;
+  // The view scale from display info: wall.displayInfo is available synchronously (SDK 1.59+). It
+  // is the last answer this origin read, so on a reload the very first 3D frame is already final
+  // size, with no intermediate step. getDisplayInfo() below then confirms or corrects it.
+  const readViewScale = (info) => {
+    const x = info?.recommendedViewScaleX, y = info?.recommendedViewScaleY;
+    return x > 0 && x <= 1 && y > 0 && y <= 1 ? [x, y] : null;
+  };
+  let viewScale = readViewScale(wall.displayInfo);
   let glLimit = null;
   const MAX_AREA = 33_000_000; // measured browser cap ~33.17 Mpx
   const storeSize = () => {
@@ -72,7 +79,9 @@ export async function startDisplayXR({ THREE, renderer, scene, camera, rtsCam, c
     const { w, h } = storeSize();
     if (canvas.width === w * 2 && canvas.height === h) return;
     renderer.setSize(w * 2, h, false);
-    camera.aspect = w / h;
+    // The box's aspect, not the eye buffer's: they differ on a display whose view scale is not
+    // the same on both axes, and each eye's image always spans the whole box.
+    camera.aspect = canvas.clientWidth > 0 && canvas.clientHeight > 0 ? canvas.clientWidth / canvas.clientHeight : w / h;
     camera.updateProjectionMatrix();
     replay();
   };
@@ -188,8 +197,8 @@ export async function startDisplayXR({ THREE, renderer, scene, camera, rtsCam, c
   }
   ctl.handle.displayMetrics?.().then((m) => { metrics = m; }).catch(() => {});
   ctl.handle.getDisplayInfo?.().then((info) => {
-    const x = info?.recommendedViewScaleX, y = info?.recommendedViewScaleY;
-    if (x > 0 && x <= 1 && y > 0 && y <= 1) { viewScale = [x, y]; sizeSBS(); }
+    const v = readViewScale(info);
+    if (v) { viewScale = v; sizeSBS(); }
   }).catch(() => {});
   window.addEventListener('resize', () => ctl.handle.displayMetrics?.().then((m) => { metrics = m; }).catch(() => {}));
   return ctl;
