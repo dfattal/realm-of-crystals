@@ -37,14 +37,54 @@ export async function startDisplayXR({ THREE, renderer, scene, camera, rtsCam, c
   let last = performance.now();
   let lastNear = 0, lastFar = 0;
 
-  const sizeSBS = () => {
+  // Per-eye size the way a native DisplayXR app does it: window device px x the display's
+  // recommended view scale (0.5 x 0.5 on a Leia panel: the weave shows no more per view). Until
+  // the display info arrives, CSS px x devicePixelRatio capped at 2. Then shrink both axes by one
+  // factor to fit the GL limits AND the browser's drawing-buffer area cap. The old
+  // clientWidth x dpr x 2 was 15360x4320 full screen on an 8K panel at 300%: the browser silently
+  // drew it at 10861x3054, getViewport() still split canvas.width, and one eye showed both images.
+  let viewScale = null;
+  let glLimit = null;
+  const MAX_AREA = 33_000_000; // measured browser cap ~33.17 Mpx
+  const storeSize = () => {
     const dpr = window.devicePixelRatio || 1;
-    const w = Math.round(canvas.clientWidth * dpr), h = Math.round(canvas.clientHeight * dpr);
+    let w, h;
+    if (viewScale) {
+      w = canvas.clientWidth * dpr * viewScale[0];
+      h = canvas.clientHeight * dpr * viewScale[1];
+    } else {
+      const d = Math.min(dpr, 2);
+      w = canvas.clientWidth * d;
+      h = canvas.clientHeight * d;
+    }
+    w = Math.max(1, Math.round(w)); h = Math.max(1, Math.round(h));
+    if (glLimit === null) {
+      const gl = renderer.getContext();
+      const vp = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
+      glLimit = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), gl.getParameter(gl.MAX_RENDERBUFFER_SIZE), vp[0], vp[1]);
+    }
+    const s = Math.min(1, glLimit / (2 * w), glLimit / h, Math.sqrt(MAX_AREA / (2 * w * h)));
+    if (s < 1) { w = Math.floor(w * s); h = Math.floor(h * s); }
+    return { w, h };
+  };
+
+  const sizeSBS = () => {
+    const { w, h } = storeSize();
     if (canvas.width === w * 2 && canvas.height === h) return;
     renderer.setSize(w * 2, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     replay();
+  };
+
+  // getViewport() splits canvas.width; if the browser ever drew a smaller buffer anyway, map the
+  // viewports onto the real drawing buffer so the eyes can never land off-centre.
+  const toBuffer = (vp) => {
+    const gl = renderer.getContext();
+    const sx = canvas.width ? gl.drawingBufferWidth / canvas.width : 1;
+    const sy = canvas.height ? gl.drawingBufferHeight / canvas.height : 1;
+    if (sx === 1 && sy === 1) return vp;
+    return { x: Math.round(vp.x * sx), y: Math.round(vp.y * sy), width: Math.round(vp.width * sx), height: Math.round(vp.height * sy) };
   };
 
   const rigParams = () => {
@@ -100,7 +140,7 @@ export async function startDisplayXR({ THREE, renderer, scene, camera, rtsCam, c
       try { wall.session.updateRenderState({ depthNear: camera.near, depthFar: camera.far }); lastNear = camera.near; lastFar = camera.far; } catch (e) { /* ignore */ }
     }
     if (!views || views.length < 2 || !layer) return replay();
-    const vps = views.map((v) => layer.getViewport(v));
+    const vps = views.map((v) => { const vp = layer.getViewport(v); return vp && toBuffer(vp); });
     if (vps.some((vp) => !vp || vp.width <= 0 || vp.height <= 0)) return replay();
     scene.updateMatrixWorld();
     renderer.setScissorTest(false);
@@ -147,6 +187,10 @@ export async function startDisplayXR({ THREE, renderer, scene, camera, rtsCam, c
     return null;
   }
   ctl.handle.displayMetrics?.().then((m) => { metrics = m; }).catch(() => {});
+  ctl.handle.getDisplayInfo?.().then((info) => {
+    const x = info?.recommendedViewScaleX, y = info?.recommendedViewScaleY;
+    if (x > 0 && x <= 1 && y > 0 && y <= 1) { viewScale = [x, y]; sizeSBS(); }
+  }).catch(() => {});
   window.addEventListener('resize', () => ctl.handle.displayMetrics?.().then((m) => { metrics = m; }).catch(() => {}));
   return ctl;
 }
